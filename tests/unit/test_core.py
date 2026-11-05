@@ -270,3 +270,30 @@ def test_conformance_runner_honest():
         _validate_fixture({"id": "x"})
     res = run_fixture({"id": "ESP-CF-002", "document_content": "real text", "claim": "claim", "quote": "fake quote", "expected_result": "verification_fail"})
     assert res["passed"] is True
+
+def test_runner_valid_quote_acceptance():
+    from evidence_state.conformance.runner import run_fixture
+    fx = {"id": "ESP-CF-002", "document_content": "real text", "claim": "claim", "quote": "real text", "expected_result": "verification_pass"}
+    res = run_fixture(fx)
+    assert res["passed"] is True
+    assert res["actual"] == "verification_pass"
+
+def test_runner_malformed_fixture():
+    from evidence_state.conformance.runner import run_fixture, _validate_fixture
+    import pytest
+    with pytest.raises(ValueError):
+        _validate_fixture({"id": "ESP-CF-002"})
+    with pytest.raises(ValueError):
+        _validate_fixture("not a dict")
+
+def test_runner_unsupported_fixture():
+    from evidence_state.conformance.runner import run_fixture
+    res = run_fixture({"id": "ESP-CF-999", "document_content": "x", "claim": "c", "quote": "q", "expected_result": "verification_fail"})
+    assert res["passed"] is False
+    assert res["reason"] == "unsupported fixture"
+
+def test_runner_incorrect_expected_outcome():
+    from evidence_state.conformance.runner import run_fixture
+    fx = {"id": "ESP-CF-002", "document_content": "real text", "claim": "claim", "quote": "fake quote", "expected_result": "verification_pass"}
+    res = run_fixture(fx)
+    assert res["passed"] is False
