@@ -97,7 +97,7 @@ PYTHONPATH=src python examples/evidence_lifecycle_demo.py
 PYTHONPATH=src python -m pytest tests/ -q
 ```
 
-24 tests covering ingestion, quotation preservation, unsupported-claim rejection, exact dedup, semantic duplicate surfacing, contradiction preservation, multi-source support, withdrawal invalidation, revision persistence, restart reconstruction, index rebuild non-authority, insufficiency, conflict, max-iteration policy, schema validation, provenance traversal, and fabricated-quote adversarial cases.
+29 tests covering ingestion, quotation preservation, unsupported-claim rejection, exact dedup, semantic duplicate surfacing, contradiction preservation, multi-source support, withdrawal invalidation, revision persistence, restart reconstruction, index rebuild non-authority, insufficiency, conflict, max-iteration policy, schema validation, provenance traversal, fabricated-quote adversarial cases, and runner edge cases (valid quote acceptance, malformed fixture, unsupported fixture, incorrect expected outcome, fixture loaded from disk).
 
 ## Repository layout
 
@@ -135,6 +135,16 @@ evidence-state-protocol/
 - It does not make a model more reliable. It makes reliability *inspectable and governable*.
 - It does not replace human judgment on ambiguous contradictions.
 - It does not provide tamper-proof storage without external anchoring.
+
+## Specifications
+
+- `spec/ESP-Protocol-v1.md` — v1.0 protocol specification (frozen)
+- `spec/ESP-Protocol-v1.1.md` — v1.1 normative specification
+- `spec/esp_v1_1_spec.md` — complete schema reference
+- `spec/CONFORMANCE.md` — conformance contract (15 cases, 1 executable)
+- `spec/MIGRATION-v1.0-to-v1.1.md` — migration guide
+- `spec/ARCHITECTURE-DECISIONS.md` — finalized decisions
+- `docs/release-readiness.md` — release readiness
 
 ## License
 
