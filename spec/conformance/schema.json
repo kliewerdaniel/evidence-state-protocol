@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ESP Conformance Fixture",
+  "type": "object",
+  "required": ["id", "invariant_ids", "title", "initial_state", "operations", "expected_result", "expected_state"],
+  "properties": {
+    "id": {"type": "string"},
+    "invariant_ids": {"type": "array", "items": {"type": "string"}},
+    "title": {"type": "string"},
+    "initial_state": {"type": "object"},
+    "operations": {"type": "array"},
+    "expected_result": {"type": "string"},
+    "expected_state": {"type": "object"}
+  }
+}
