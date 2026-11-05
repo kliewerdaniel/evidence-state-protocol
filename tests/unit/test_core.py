@@ -262,3 +262,8 @@ def test_failure_injection_audit_rollback():
     ledger2.run_verification(c.id, [ev.id], "structural")
     assert ledger2.get_claim(c.id).status.value == "verified"
     ledger.close()
+
+def test_conformance_runner_honest():
+    from evidence_state.conformance.runner import run_fixture
+    res = run_fixture({"id": "x"}, None)
+    assert res["passed"] is False
