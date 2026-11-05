@@ -57,13 +57,14 @@ def test_multi_source():
 
 def test_withdrawal_invalidates():
     db = tmpdb()
-    ledger = EvidenceLedger(db)
+    ledger = EvidenceLedger(db, admin_token="test")
     d = ledger.register_document("u", "q")
     c,_ = ledger.propose_claim(d.id, "claim", "q")
     sv = StructuralVerifier()
     def tv(claim, evs):
         return sv.verify(claim, evs, "q")
     ledger.register_verifier("structural", tv)
+    ledger.freeze_verifiers("test")
     ledger.run_verification(c.id, [ev.id for ev in ledger.get_evidence(c.id)], "structural")
     ledger.withdraw_document(d.id)
     assert ledger.get_claim(c.id).status.value in ("unverified","withdrawn")

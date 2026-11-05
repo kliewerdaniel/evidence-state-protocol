@@ -119,20 +119,20 @@ class EvidenceLedger:
         self._frozen = True
 
     def run_verification(self, claim_id, evidence_ids, verifier_name):
+        if not self._frozen:
+            raise ValueError("verifier registry must be frozen")
         if verifier_name not in self._trusted_verifiers:
             raise ValueError(f"untrusted verifier: {verifier_name}")
         claim = self.get_claim(claim_id)
         evs = [e for e in self.get_evidence(claim_id) if e.id in evidence_ids]
-        # quote validation against stored source content
         for e in evs:
             content, h = self.get_document_content(e.document_id)
-            if content is not None and e.quote not in content:
+            if content is None:
+                raise ValueError("source content required")
+            if e.quote not in content:
                 raise ValueError("fabricated quotation")
-            # hash integrity
-            if content is not None:
-                if hashlib.sha256(content.encode()).hexdigest() != h:
-                    raise ValueError("source hash mismatch")
-            # offset validation
+            if hashlib.sha256(content.encode()).hexdigest() != h:
+                raise ValueError("source hash mismatch")
             if e.start_offset is not None or e.end_offset is not None:
                 if e.start_offset is None or e.end_offset is None:
                     raise ValueError("partial offsets")
@@ -140,8 +140,6 @@ class EvidenceLedger:
                     raise ValueError("negative offsets")
                 if e.start_offset > e.end_offset:
                     raise ValueError("reversed offsets")
-                if content is None:
-                    raise ValueError("no content for offset validation")
                 if e.end_offset > len(content):
                     raise ValueError("out of range offsets")
                 if content[e.start_offset:e.end_offset] != e.quote:

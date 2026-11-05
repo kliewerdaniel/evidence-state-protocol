@@ -4,7 +4,7 @@ from evidence_state import *
 
 db = os.path.join(tempfile.gettempdir(), "esp_demo.db")
 if os.path.exists(db): os.remove(db)
-ledger = EvidenceLedger(db)
+ledger = EvidenceLedger(db, admin_token="admin-secret")
 
 # documents
 d1 = ledger.register_document("doc1", "The API requires OAuth2 authentication. Requests must include an OAuth2 bearer token.")
@@ -24,6 +24,7 @@ sv = StructuralVerifier()
 def trusted_verifier(claim, evs):
     return sv.verify(claim, evs, None)
 ledger.register_verifier("structural", trusted_verifier)
+ledger.freeze_verifiers("admin-secret")
 
 for c in [c1,c2,c3]:
     ev = ledger.get_evidence(c.id)
