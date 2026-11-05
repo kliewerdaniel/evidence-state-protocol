@@ -264,6 +264,9 @@ def test_failure_injection_audit_rollback():
     ledger.close()
 
 def test_conformance_runner_honest():
-    from evidence_state.conformance.runner import run_fixture
-    res = run_fixture({"id": "x"}, None)
-    assert res["passed"] is False
+    from evidence_state.conformance.runner import run_fixture, _validate_fixture
+    import pytest
+    with pytest.raises(ValueError):
+        _validate_fixture({"id": "x"})
+    res = run_fixture({"id": "ESP-CF-002", "document_content": "real text", "claim": "claim", "quote": "fake quote", "expected_result": "verification_fail"})
+    assert res["passed"] is True
