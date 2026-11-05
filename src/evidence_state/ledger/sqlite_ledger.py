@@ -132,6 +132,10 @@ class EvidenceLedger:
             if content is not None:
                 if hashlib.sha256(content.encode()).hexdigest() != h:
                     raise ValueError("source hash mismatch")
+            # offset validation
+            if e.start_offset is not None and e.end_offset is not None and content is not None:
+                if content[e.start_offset:e.end_offset] != e.quote:
+                    raise ValueError("offset mismatch")
         fn = self._trusted_verifiers[verifier_name]
         v = fn(claim, evs)
         v.verifier_identity = verifier_name
@@ -215,9 +219,13 @@ class EvidenceLedger:
         return changed
 
     def verify_source_integrity(self, doc_id):
-        doc = self.get_document(doc_id)
-        if not doc: return False
-        return bool(doc.content_hash)
+        r = self.conn.execute("SELECT content, content_hash FROM documents WHERE id=?", (doc_id,)).fetchone()
+        if not r: return False
+        content = r["content"]
+        stored_hash = r["content_hash"]
+        if content is None:
+            return bool(stored_hash)
+        return hashlib.sha256(content.encode()).hexdigest() == stored_hash
 
     def close(self):
         self.conn.close()

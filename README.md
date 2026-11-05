@@ -48,9 +48,12 @@ Typed Pydantic models: `Document`, `Claim`, `Evidence`, `Verification`, `Contrad
 ## Public API (illustrative)
 
 ```python
-from evidence_state import EvidenceLedger, StructuralVerifier, SufficiencyEvaluator
+from evidence_state import EvidenceLedger, StructuralVerifier
 
-ledger = EvidenceLedger("./evidence.db")
+ledger = EvidenceLedger("./evidence.db", admin_token="admin-secret")
+sv = StructuralVerifier()
+ledger.register_verifier("structural", lambda c, evs: sv.verify(c, evs, None))
+ledger.freeze_verifiers("admin-secret")
 
 document = ledger.register_document("https://example.com/api", content)
 candidate, evidence = ledger.propose_claim(
@@ -59,8 +62,7 @@ candidate, evidence = ledger.propose_claim(
     source_quote="Requests must include an OAuth2 bearer token.",
 )
 
-verification = StructuralVerifier().verify(candidate, [evidence], content)
-ledger.record_verification(verification)
+verification = ledger.run_verification(candidate.id, [evidence.id], "structural")
 
 evaluation = SufficiencyEvaluator({}).evaluate(
     objective="Determine auth requirement",
@@ -68,6 +70,7 @@ evaluation = SufficiencyEvaluator({}).evaluate(
     ledger=ledger,
 )
 print(evaluation.status, evaluation.missing_information)
+ledger.close()
 ```
 
 ## Installation
