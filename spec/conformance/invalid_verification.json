@@ -1,0 +1,9 @@
+{
+  "id": "ESP-CF-001",
+  "invariant": "ESP-INV-001",
+  "title": "Untrusted caller cannot issue trusted verification",
+  "initial_state": {"claims": [{"id": "c1", "status": "PROPOSED"}]},
+  "operation": {"type": "record_verification", "claim_id": "c1", "result": "PASS", "evidence_ids": []},
+  "expected_result": "error",
+  "expected_state": {"claims": [{"id": "c1", "status": "PROPOSED"}]}
+}
