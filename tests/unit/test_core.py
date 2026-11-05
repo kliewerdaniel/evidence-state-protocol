@@ -238,3 +238,27 @@ def test_missing_content_integrity_false():
     d = ledger.register_document("u", "abc")
     assert ledger.verify_source_integrity(d.id) is True
     ledger.close()
+
+def test_failure_injection_audit_rollback():
+    db = tmpdb()
+    ledger = EvidenceLedger(db, admin_token="t")
+    sv = StructuralVerifier()
+    ledger.register_verifier("structural", lambda c, e: sv.verify(c, e, "q"))
+    ledger.freeze_verifiers("t")
+    d = ledger.register_document("u", "q")
+    c, ev = ledger.propose_claim(d.id, "claim", "q")
+    # make audit fail
+    orig_audit = ledger._audit
+    def boom(*a, **k):
+        raise RuntimeError("audit fail")
+    ledger._audit = boom
+    with pytest.raises(RuntimeError):
+        ledger.run_verification(c.id, [ev.id], "structural")
+    ledger._audit = orig_audit
+    # claim should remain unverified
+    assert ledger.get_claim(c.id).status.value != "verified"
+    # same connection recovery: valid op succeeds
+    ledger2 = ledger
+    ledger2.run_verification(c.id, [ev.id], "structural")
+    assert ledger2.get_claim(c.id).status.value == "verified"
+    ledger.close()
