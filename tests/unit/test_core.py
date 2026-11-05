@@ -61,8 +61,10 @@ def test_withdrawal_invalidates():
     d = ledger.register_document("u", "q")
     c,_ = ledger.propose_claim(d.id, "claim", "q")
     sv = StructuralVerifier()
-    v = sv.verify(c, ledger.get_evidence(c.id), "q")
-    ledger.record_verification(v)
+    def tv(claim, evs):
+        return sv.verify(claim, evs, "q")
+    ledger.register_verifier("structural", tv)
+    ledger.run_verification(c.id, [ev.id for ev in ledger.get_evidence(c.id)], "structural")
     ledger.withdraw_document(d.id)
     assert ledger.get_claim(c.id).status.value in ("unverified","withdrawn")
     ledger.close()

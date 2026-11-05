@@ -8,7 +8,7 @@ SCHEMA = """
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS documents (
   id TEXT PRIMARY KEY, source_uri TEXT NOT NULL, content_hash TEXT NOT NULL,
-  source_type TEXT, retrieved_at TEXT, metadata TEXT, version INTEGER);
+  source_type TEXT, retrieved_at TEXT, metadata TEXT, version INTEGER, content TEXT);
 CREATE TABLE IF NOT EXISTS claims (
   id TEXT PRIMARY KEY, text TEXT NOT NULL, normalized TEXT, claim_type TEXT,
   created_at TEXT, status TEXT, revision_id TEXT);
@@ -42,7 +42,13 @@ class EvidenceLedger:
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys=ON")
         self.conn.executescript(SCHEMA)
+        try:
+            self.conn.execute("ALTER TABLE documents ADD COLUMN content TEXT")
+        except Exception:
+            pass
         self.conn.commit()
+        self._trusted_verifiers = {}
+        self._issued_verifications = set()
 
     def _audit(self, event, payload):
         self.conn.execute("INSERT INTO audit(event,payload,ts) VALUES(?,?,?)",
@@ -52,8 +58,8 @@ class EvidenceLedger:
     def register_document(self, source_uri, content, source_type=SourceType.DOCUMENT, metadata=None):
         h = hashlib.sha256(content.encode()).hexdigest()
         d = Document(source_uri=source_uri, content_hash=h, source_type=source_type, metadata=metadata or {})
-        self.conn.execute("INSERT INTO documents VALUES(?,?,?,?,?,?,?)",
-            (d.id, d.source_uri, d.content_hash, d.source_type.value, d.retrieved_at.isoformat(), json.dumps(d.metadata), d.version))
+        self.conn.execute("INSERT INTO documents VALUES(?,?,?,?,?,?,?,?)",
+            (d.id, d.source_uri, d.content_hash, d.source_type.value, d.retrieved_at.isoformat(), json.dumps(d.metadata), d.version, content))
         self.conn.commit()
         self._audit("register_document", {"id": d.id})
         return d
@@ -94,7 +100,39 @@ class EvidenceLedger:
             out.append(Claim(id=r["id"], text=r["text"], normalized=r["normalized"], claim_type=r["claim_type"], created_at=datetime.fromisoformat(r["created_at"]), status=r["status"], revision_id=r["revision_id"]))
         return out
 
+    def get_document_content(self, doc_id):
+        r = self.conn.execute("SELECT content, content_hash FROM documents WHERE id=?", (doc_id,)).fetchone()
+        if not r: return None
+        return r["content"], r["content_hash"]
+
+    def register_verifier(self, name, fn):
+        self._trusted_verifiers[name] = fn
+
+    def run_verification(self, claim_id, evidence_ids, verifier_name):
+        if verifier_name not in self._trusted_verifiers:
+            raise ValueError(f"untrusted verifier: {verifier_name}")
+        claim = self.get_claim(claim_id)
+        evs = [e for e in self.get_evidence(claim_id) if e.id in evidence_ids]
+        # quote validation against stored source content
+        for e in evs:
+            content, h = self.get_document_content(e.document_id)
+            if content is not None and e.quote not in content:
+                raise ValueError("fabricated quotation")
+            # hash integrity
+            if content is not None:
+                if hashlib.sha256(content.encode()).hexdigest() != h:
+                    raise ValueError("source hash mismatch")
+        fn = self._trusted_verifiers[verifier_name]
+        v = fn(claim, evs)
+        v.verifier_identity = verifier_name
+        self._issued_verifications.add(v.id)
+        self.record_verification(v)
+        return v
+
     def record_verification(self, v: Verification):
+        if v.id not in self._issued_verifications:
+            raise ValueError("untrusted or unissued verification")
+        self._issued_verifications.discard(v.id)
         # guard: PASS requires evidence
         if v.result == VerificationResult.PASS and not v.evidence_ids:
             raise ValueError("PASS verification requires evidence_ids")

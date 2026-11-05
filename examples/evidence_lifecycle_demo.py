@@ -19,14 +19,15 @@ c3,_ = ledger.propose_claim(d3.id, "The API uses API keys instead of OAuth2.", "
 print("Proposed 3 claims")
 
 # verify
+from evidence_state.verification.verifier import StructuralVerifier
 sv = StructuralVerifier()
+def trusted_verifier(claim, evs):
+    return sv.verify(claim, evs, None)
+ledger.register_verifier("structural", trusted_verifier)
+
 for c in [c1,c2,c3]:
     ev = ledger.get_evidence(c.id)
-    # find doc text
-    doc = ledger.get_document(ev[0].document_id)
-    v = sv.verify(c, ev, None)
-    # quote validation manual
-    ledger.record_verification(v)
+    ledger.run_verification(c.id, [e.id for e in ev], "structural")
 print("Verified")
 
 # contradiction detection

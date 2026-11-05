@@ -93,7 +93,7 @@ PYTHONPATH=src python examples/evidence_lifecycle_demo.py
 PYTHONPATH=src python -m pytest tests/ -q
 ```
 
-15 tests covering ingestion, quotation preservation, unsupported-claim rejection, exact dedup, semantic duplicate surfacing, contradiction preservation, multi-source support, withdrawal invalidation, revision persistence, restart reconstruction, index rebuild non-authority, insufficiency, conflict, max-iteration policy, schema validation, provenance traversal, and fabricated-quote adversarial cases.
+18 tests covering ingestion, quotation preservation, unsupported-claim rejection, exact dedup, semantic duplicate surfacing, contradiction preservation, multi-source support, withdrawal invalidation, revision persistence, restart reconstruction, index rebuild non-authority, insufficiency, conflict, max-iteration policy, schema validation, provenance traversal, and fabricated-quote adversarial cases.
 
 ## Repository layout
 
