@@ -8,7 +8,8 @@ SCHEMA = """
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS documents (
   id TEXT PRIMARY KEY, source_uri TEXT NOT NULL, content_hash TEXT NOT NULL,
-  source_type TEXT, retrieved_at TEXT, metadata TEXT, version INTEGER, content TEXT);
+  source_type TEXT, retrieved_at TEXT, metadata TEXT, version INTEGER, content TEXT,
+  status TEXT DEFAULT 'ACTIVE');
 CREATE TABLE IF NOT EXISTS claims (
   id TEXT PRIMARY KEY, text TEXT NOT NULL, normalized TEXT, claim_type TEXT,
   created_at TEXT, status TEXT, revision_id TEXT);
@@ -46,6 +47,10 @@ class EvidenceLedger:
             self.conn.execute("ALTER TABLE documents ADD COLUMN content TEXT")
         except Exception:
             pass
+        try:
+            self.conn.execute("ALTER TABLE documents ADD COLUMN status TEXT DEFAULT 'ACTIVE'")
+        except Exception:
+            pass
         self.conn.commit()
         self._trusted_verifiers = {}
         self._issued_verifications = set()
@@ -60,8 +65,8 @@ class EvidenceLedger:
     def register_document(self, source_uri, content, source_type=SourceType.DOCUMENT, metadata=None):
         h = hashlib.sha256(content.encode()).hexdigest()
         d = Document(source_uri=source_uri, content_hash=h, source_type=source_type, metadata=metadata or {})
-        self.conn.execute("INSERT INTO documents VALUES(?,?,?,?,?,?,?,?)",
-            (d.id, d.source_uri, d.content_hash, d.source_type.value, d.retrieved_at.isoformat(), json.dumps(d.metadata), d.version, content))
+        self.conn.execute("INSERT INTO documents VALUES(?,?,?,?,?,?,?,?,?)",
+            (d.id, d.source_uri, d.content_hash, d.source_type.value, d.retrieved_at.isoformat(), json.dumps(d.metadata), d.version, content, "ACTIVE"))
         self.conn.commit()
         self._audit("register_document", {"id": d.id})
         return d
@@ -103,9 +108,9 @@ class EvidenceLedger:
         return out
 
     def get_document_content(self, doc_id):
-        r = self.conn.execute("SELECT content, content_hash FROM documents WHERE id=?", (doc_id,)).fetchone()
+        r = self.conn.execute("SELECT content, content_hash, status FROM documents WHERE id=?", (doc_id,)).fetchone()
         if not r: return None
-        return r["content"], r["content_hash"]
+        return r["content"], r["content_hash"], r["status"]
 
     def register_verifier(self, name, fn, token=None):
         if self._frozen:
@@ -126,7 +131,9 @@ class EvidenceLedger:
         claim = self.get_claim(claim_id)
         evs = [e for e in self.get_evidence(claim_id) if e.id in evidence_ids]
         for e in evs:
-            content, h = self.get_document_content(e.document_id)
+            content, h, status = self.get_document_content(e.document_id)
+            if status == "WITHDRAWN":
+                raise ValueError("document withdrawn")
             if content is None:
                 raise ValueError("source content required")
             if e.quote not in content:
@@ -146,7 +153,12 @@ class EvidenceLedger:
                     raise ValueError("offset mismatch")
         fn = self._trusted_verifiers[verifier_name]
         v = fn(claim, evs)
+        if v.claim_id != claim_id:
+            raise ValueError("claim_id mismatch")
+        if sorted(v.evidence_ids) != sorted(evidence_ids):
+            raise ValueError("evidence_ids mismatch")
         v.verifier_identity = verifier_name
+        v.method = "run_verification"
         self._issued_verifications.add(v.id)
         self.record_verification(v)
         return v
@@ -215,7 +227,7 @@ class EvidenceLedger:
         return out
 
     def withdraw_document(self, doc_id):
-        # invalidate evidence + verifications tied to this doc
+        self.conn.execute("UPDATE documents SET status='WITHDRAWN' WHERE id=?", (doc_id,))
         evs = self.conn.execute("SELECT id,claim_id FROM evidence WHERE document_id=?", (doc_id,)).fetchall()
         changed=[]
         for ev in evs:
