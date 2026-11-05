@@ -2,8 +2,11 @@
   "id": "ESP-CF-002",
   "invariant_ids": ["ESP-INV-004", "ESP-INV-005"],
   "title": "Fabricated quotation rejected",
+  "document_content": "real text",
+  "claim": "claim",
+  "quote": "fake quote",
+  "expected_result": "verification_fail",
   "initial_state": {"documents": [{"id": "d1", "content": "real text"}]},
   "operations": [{"type": "propose_claim", "document_id": "d1", "claim": "claim", "source_quote": "fake quote"}],
-  "expected_result": "verification_fail",
   "expected_state": {"claims": [{"id": "c1", "status": "UNVERIFIED"}]}
 }
