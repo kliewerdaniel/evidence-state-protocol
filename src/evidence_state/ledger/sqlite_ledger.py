@@ -60,15 +60,14 @@ class EvidenceLedger:
     def _audit(self, event, payload):
         self.conn.execute("INSERT INTO audit(event,payload,ts) VALUES(?,?,?)",
                           (event, json.dumps(payload), now().isoformat()))
-        self.conn.commit()
 
     def register_document(self, source_uri, content, source_type=SourceType.DOCUMENT, metadata=None):
         h = hashlib.sha256(content.encode()).hexdigest()
         d = Document(source_uri=source_uri, content_hash=h, source_type=source_type, metadata=metadata or {})
         self.conn.execute("INSERT INTO documents VALUES(?,?,?,?,?,?,?,?,?)",
             (d.id, d.source_uri, d.content_hash, d.source_type.value, d.retrieved_at.isoformat(), json.dumps(d.metadata), d.version, content, "ACTIVE"))
-        self.conn.commit()
         self._audit("register_document", {"id": d.id})
+        self.conn.commit()
         return d
 
     def propose_claim(self, document_id, claim, source_quote, claim_type="factual", start_offset=None, end_offset=None):
@@ -78,8 +77,8 @@ class EvidenceLedger:
             (c.id, c.text, c.normalized, c.claim_type, c.created_at.isoformat(), c.status.value, c.revision_id))
         self.conn.execute("INSERT INTO evidence VALUES(?,?,?,?,?,?,?,?)",
             (ev.id, ev.claim_id, ev.document_id, ev.quote, ev.start_offset, ev.end_offset, json.dumps(ev.extraction_metadata), ev.verification_status.value))
-        self.conn.commit()
         self._audit("propose_claim", {"claim_id": c.id, "evidence_id": ev.id})
+        self.conn.commit()
         return c, ev
 
     def get_claim(self, claim_id):
@@ -128,6 +127,17 @@ class EvidenceLedger:
             raise ValueError("verifier registry must be frozen")
         if verifier_name not in self._trusted_verifiers:
             raise ValueError(f"untrusted verifier: {verifier_name}")
+        if not evidence_ids:
+            raise ValueError("empty evidence set")
+        if len(set(evidence_ids)) != len(evidence_ids):
+            raise ValueError("duplicate evidence ids")
+        # validate existence and ownership
+        for eid in evidence_ids:
+            row = self.conn.execute("SELECT claim_id FROM evidence WHERE id=?", (eid,)).fetchone()
+            if not row:
+                raise ValueError(f"unknown evidence {eid}")
+            if row["claim_id"] != claim_id:
+                raise ValueError(f"evidence {eid} does not belong to claim {claim_id}")
         claim = self.get_claim(claim_id)
         evs = [e for e in self.get_evidence(claim_id) if e.id in evidence_ids]
         for e in evs:
@@ -184,14 +194,14 @@ class EvidenceLedger:
             self.conn.execute("UPDATE claims SET status=? WHERE id=?", (ClaimStatus.VERIFIED.value, v.claim_id))
         elif v.result == VerificationResult.FAIL:
             self.conn.execute("UPDATE claims SET status=? WHERE id=?", (ClaimStatus.UNVERIFIED.value, v.claim_id))
-        self.conn.commit()
         self._audit("record_verification", {"verification_id": v.id, "claim_id": v.claim_id})
+        self.conn.commit()
 
     def record_contradiction(self, c: Contradiction):
         self.conn.execute("INSERT INTO contradictions VALUES(?,?,?,?,?,?)",
             (c.id, json.dumps(c.claim_ids), c.classification, json.dumps(c.evidence_ids), c.resolution_status, c.resolution_provenance))
-        self.conn.commit()
         self._audit("record_contradiction", {"id": c.id})
+        self.conn.commit()
 
     def contradictions(self):
         rows = self.conn.execute("SELECT * FROM contradictions").fetchall()
@@ -203,8 +213,8 @@ class EvidenceLedger:
     def record_revision(self, r: Revision):
         self.conn.execute("INSERT INTO revisions VALUES(?,?,?,?,?,?,?)",
             (r.id, r.previous_state_id, r.resulting_state_id, json.dumps(r.changed_entities), r.reason, r.timestamp.isoformat(), r.actor))
-        self.conn.commit()
         self._audit("record_revision", {"id": r.id})
+        self.conn.commit()
 
     def revisions(self):
         rows = self.conn.execute("SELECT * FROM revisions").fetchall()
@@ -216,8 +226,8 @@ class EvidenceLedger:
     def record_evaluation(self, e: Evaluation):
         self.conn.execute("INSERT INTO evaluations VALUES(?,?,?,?,?,?,?,?)",
             (e.id, e.objective, json.dumps(e.required_criteria), json.dumps(e.satisfied_criteria), json.dumps(e.unsatisfied_criteria), json.dumps(e.missing_information), e.status.value, e.provenance))
-        self.conn.commit()
         self._audit("record_evaluation", {"id": e.id, "status": e.status.value})
+        self.conn.commit()
 
     def evaluations(self):
         rows = self.conn.execute("SELECT * FROM evaluations").fetchall()
@@ -234,8 +244,8 @@ class EvidenceLedger:
             self.conn.execute("UPDATE evidence SET verification_status=? WHERE id=?", (VerificationResult.FAIL.value, ev["id"]))
             self.conn.execute("UPDATE claims SET status=? WHERE id=?", (ClaimStatus.UNVERIFIED.value, ev["claim_id"]))
             changed.append(ev["claim_id"])
-        self.conn.commit()
         self._audit("withdraw_document", {"doc_id": doc_id, "affected_claims": changed})
+        self.conn.commit()
         return changed
 
     def verify_source_integrity(self, doc_id):
