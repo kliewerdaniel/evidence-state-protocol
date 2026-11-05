@@ -297,3 +297,13 @@ def test_runner_incorrect_expected_outcome():
     fx = {"id": "ESP-CF-002", "document_content": "real text", "claim": "claim", "quote": "fake quote", "expected_result": "verification_pass"}
     res = run_fixture(fx)
     assert res["passed"] is False
+
+def test_runner_loads_fixture_from_disk():
+    import json, os
+    from evidence_state.conformance.runner import run_fixture
+    path = os.path.join("spec", "conformance", "fabricated_quote.json")
+    with open(path) as f:
+        fx = json.load(f)
+    res = run_fixture(fx)
+    assert res["passed"] is True
+    assert res["actual"] == "verification_fail"
