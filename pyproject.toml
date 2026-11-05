@@ -1,0 +1,10 @@
+[project]
+name = "evidence-state-protocol"
+version = "0.1.0"
+description = "Model-independent evidence management protocol."
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
