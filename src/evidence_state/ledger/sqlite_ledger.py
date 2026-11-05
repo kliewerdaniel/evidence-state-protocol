@@ -133,7 +133,17 @@ class EvidenceLedger:
                 if hashlib.sha256(content.encode()).hexdigest() != h:
                     raise ValueError("source hash mismatch")
             # offset validation
-            if e.start_offset is not None and e.end_offset is not None and content is not None:
+            if e.start_offset is not None or e.end_offset is not None:
+                if e.start_offset is None or e.end_offset is None:
+                    raise ValueError("partial offsets")
+                if e.start_offset < 0 or e.end_offset < 0:
+                    raise ValueError("negative offsets")
+                if e.start_offset > e.end_offset:
+                    raise ValueError("reversed offsets")
+                if content is None:
+                    raise ValueError("no content for offset validation")
+                if e.end_offset > len(content):
+                    raise ValueError("out of range offsets")
                 if content[e.start_offset:e.end_offset] != e.quote:
                     raise ValueError("offset mismatch")
         fn = self._trusted_verifiers[verifier_name]
@@ -224,7 +234,7 @@ class EvidenceLedger:
         content = r["content"]
         stored_hash = r["content_hash"]
         if content is None:
-            return bool(stored_hash)
+            return False  # cannot verify without retained content
         return hashlib.sha256(content.encode()).hexdigest() == stored_hash
 
     def close(self):

@@ -48,11 +48,12 @@ Typed Pydantic models: `Document`, `Claim`, `Evidence`, `Verification`, `Contrad
 ## Public API (illustrative)
 
 ```python
-from evidence_state import EvidenceLedger, StructuralVerifier
+from evidence_state import EvidenceLedger, StructuralVerifier, SufficiencyEvaluator
 
+content = "Requests must include an OAuth2 bearer token."
 ledger = EvidenceLedger("./evidence.db", admin_token="admin-secret")
 sv = StructuralVerifier()
-ledger.register_verifier("structural", lambda c, evs: sv.verify(c, evs, None))
+ledger.register_verifier("structural", lambda c, evs: sv.verify(c, evs, content))
 ledger.freeze_verifiers("admin-secret")
 
 document = ledger.register_document("https://example.com/api", content)
@@ -96,7 +97,7 @@ PYTHONPATH=src python examples/evidence_lifecycle_demo.py
 PYTHONPATH=src python -m pytest tests/ -q
 ```
 
-18 tests covering ingestion, quotation preservation, unsupported-claim rejection, exact dedup, semantic duplicate surfacing, contradiction preservation, multi-source support, withdrawal invalidation, revision persistence, restart reconstruction, index rebuild non-authority, insufficiency, conflict, max-iteration policy, schema validation, provenance traversal, and fabricated-quote adversarial cases.
+22 tests covering ingestion, quotation preservation, unsupported-claim rejection, exact dedup, semantic duplicate surfacing, contradiction preservation, multi-source support, withdrawal invalidation, revision persistence, restart reconstruction, index rebuild non-authority, insufficiency, conflict, max-iteration policy, schema validation, provenance traversal, and fabricated-quote adversarial cases.
 
 ## Repository layout
 

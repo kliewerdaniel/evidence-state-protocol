@@ -204,3 +204,36 @@ def test_frozen_without_token_blocks():
     v = sv.verify(c, ledger.get_evidence(c.id), "real text")
     assert v.result.value == "fail"
     ledger.close()
+def test_offset_validation():
+    db = tmpdb()
+    token = "t"
+    ledger = EvidenceLedger(db, admin_token=token)
+    sv = StructuralVerifier()
+    ledger.register_verifier("structural", lambda c, evs: sv.verify(c, evs, "hello world"))
+    ledger.freeze_verifiers(token)
+    content = "hello world"
+    d = ledger.register_document("u", content)
+    c, ev = ledger.propose_claim(d.id, "claim", "world", start_offset=6, end_offset=11)
+    ledger.run_verification(c.id, [ev.id], "structural")
+    ledger.close()
+
+def test_bad_offsets_rejected():
+    db = tmpdb()
+    token = "t"
+    ledger = EvidenceLedger(db, admin_token=token)
+    sv = StructuralVerifier()
+    ledger.register_verifier("structural", lambda c, evs: sv.verify(c, evs, "hello world"))
+    ledger.freeze_verifiers(token)
+    content = "hello world"
+    d = ledger.register_document("u", content)
+    c, ev = ledger.propose_claim(d.id, "claim", "world", start_offset=0, end_offset=5)
+    with pytest.raises(ValueError):
+        ledger.run_verification(c.id, [ev.id], "structural")
+    ledger.close()
+
+def test_missing_content_integrity_false():
+    db = tmpdb()
+    ledger = EvidenceLedger(db)
+    d = ledger.register_document("u", "abc")
+    assert ledger.verify_source_integrity(d.id) is True
+    ledger.close()
