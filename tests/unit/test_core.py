@@ -176,7 +176,26 @@ def test_pass_wrong_evidence_rejected():
         ledger.record_verification(v)
     ledger.close()
 
-def test_fabricated_quote_adversarial():
+def test_frozen_registry_blocks_untrusted():
+    db = tmpdb()
+    token = "secret"
+    ledger = EvidenceLedger(db, admin_token=token)
+    sv = StructuralVerifier()
+    ledger.register_verifier("structural", lambda c, e: sv.verify(c, e, "q"))
+    ledger.freeze_verifiers(token)
+    # untrusted registration after freeze rejected
+    with pytest.raises(PermissionError):
+        ledger.register_verifier("evil", lambda c, e: Verification(claim_id=c.id, evidence_ids=[e[0].id], method="x", result=VerificationResult.PASS, explanation="x", verifier_identity="evil"))
+    # even with correct token, allowed
+    ledger.register_verifier("structural2", lambda c, e: sv.verify(c, e, "q"), token=token)
+    ledger.close()
+
+def test_frozen_without_token_blocks():
+    db = tmpdb()
+    ledger = EvidenceLedger(db)
+    with pytest.raises(PermissionError):
+        ledger.freeze_verifiers("wrong")
+    ledger.close()
     db = tmpdb()
     ledger = EvidenceLedger(db)
     d = ledger.register_document("u","real text")

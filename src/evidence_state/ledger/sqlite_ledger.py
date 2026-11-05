@@ -1,5 +1,5 @@
 from __future__ import annotations
-import sqlite3, json, hashlib
+import sqlite3, json, hashlib, uuid
 from pathlib import Path
 from typing import Optional, List
 from ..models.entities import *
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS audit (
 """
 
 class EvidenceLedger:
-    def __init__(self, db_path: str = "./evidence.db"):
+    def __init__(self, db_path: str = "./evidence.db", admin_token: Optional[str] = None):
         self.db_path = db_path
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(db_path)
@@ -49,6 +49,8 @@ class EvidenceLedger:
         self.conn.commit()
         self._trusted_verifiers = {}
         self._issued_verifications = set()
+        self._admin_token = admin_token or str(uuid.uuid4())
+        self._frozen = False
 
     def _audit(self, event, payload):
         self.conn.execute("INSERT INTO audit(event,payload,ts) VALUES(?,?,?)",
@@ -105,8 +107,16 @@ class EvidenceLedger:
         if not r: return None
         return r["content"], r["content_hash"]
 
-    def register_verifier(self, name, fn):
+    def register_verifier(self, name, fn, token=None):
+        if self._frozen:
+            if token != self._admin_token:
+                raise PermissionError("verifier registry is frozen")
         self._trusted_verifiers[name] = fn
+
+    def freeze_verifiers(self, token=None):
+        if token != self._admin_token:
+            raise PermissionError("invalid admin token")
+        self._frozen = True
 
     def run_verification(self, claim_id, evidence_ids, verifier_name):
         if verifier_name not in self._trusted_verifiers:
