@@ -95,6 +95,14 @@ class EvidenceLedger:
         return out
 
     def record_verification(self, v: Verification):
+        # guard: PASS requires evidence
+        if v.result == VerificationResult.PASS and not v.evidence_ids:
+            raise ValueError("PASS verification requires evidence_ids")
+        # guard: evidence must belong to claim
+        for eid in v.evidence_ids:
+            ev = self.conn.execute("SELECT claim_id FROM evidence WHERE id=?", (eid,)).fetchone()
+            if not ev or ev["claim_id"] != v.claim_id:
+                raise ValueError(f"evidence {eid} does not belong to claim {v.claim_id}")
         self.conn.execute("INSERT INTO verifications VALUES(?,?,?,?,?,?,?,?)",
             (v.id, v.claim_id, json.dumps(v.evidence_ids), v.method, v.result.value, v.explanation, v.verifier_identity, v.timestamp.isoformat()))
         # update evidence status

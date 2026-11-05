@@ -141,6 +141,39 @@ def test_provenance_traversal():
     assert any(x[0]=="document" for x in chain)
     ledger.close()
 
+def test_unverified_cannot_sufficient():
+    db = tmpdb()
+    ledger = EvidenceLedger(db)
+    d = ledger.register_document("u", "q")
+    c, ev = ledger.propose_claim(d.id, "claim about oauth2", "q")
+    # claim remains PROPOSED (unverified)
+    evl = SufficiencyEvaluator({})
+    e = evl.evaluate("obj", ["oauth2"], ledger)
+    assert e.status.value != "SUFFICIENT"
+    ledger.close()
+
+def test_fabricated_pass_verification_rejected():
+    db = tmpdb()
+    ledger = EvidenceLedger(db)
+    d = ledger.register_document("u", "q")
+    c, ev = ledger.propose_claim(d.id, "claim", "q")
+    # attempt PASS with no evidence
+    v = Verification(claim_id=c.id, evidence_ids=[], method="fake", result=VerificationResult.PASS, explanation="fake", verifier_identity="attacker")
+    with pytest.raises(ValueError):
+        ledger.record_verification(v)
+    ledger.close()
+
+def test_pass_wrong_evidence_rejected():
+    db = tmpdb()
+    ledger = EvidenceLedger(db)
+    d = ledger.register_document("u", "q")
+    c1, e1 = ledger.propose_claim(d.id, "claim1", "q")
+    c2, e2 = ledger.propose_claim(d.id, "claim2", "q")
+    v = Verification(claim_id=c1.id, evidence_ids=[e2.id], method="fake", result=VerificationResult.PASS, explanation="fake", verifier_identity="attacker")
+    with pytest.raises(ValueError):
+        ledger.record_verification(v)
+    ledger.close()
+
 def test_fabricated_quote_adversarial():
     db = tmpdb()
     ledger = EvidenceLedger(db)
