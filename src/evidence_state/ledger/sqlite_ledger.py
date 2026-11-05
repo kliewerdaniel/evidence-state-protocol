@@ -5,6 +5,7 @@ from typing import Optional, List
 from ..models.entities import *
 
 SCHEMA = """
+PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS documents (
   id TEXT PRIMARY KEY, source_uri TEXT NOT NULL, content_hash TEXT NOT NULL,
   source_type TEXT, retrieved_at TEXT, metadata TEXT, version INTEGER);
@@ -12,12 +13,14 @@ CREATE TABLE IF NOT EXISTS claims (
   id TEXT PRIMARY KEY, text TEXT NOT NULL, normalized TEXT, claim_type TEXT,
   created_at TEXT, status TEXT, revision_id TEXT);
 CREATE TABLE IF NOT EXISTS evidence (
-  id TEXT PRIMARY KEY, claim_id TEXT, document_id TEXT, quote TEXT,
-  start_offset INTEGER, end_offset INTEGER, extraction_metadata TEXT,
+  id TEXT PRIMARY KEY, claim_id TEXT NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
+  document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+  quote TEXT, start_offset INTEGER, end_offset INTEGER, extraction_metadata TEXT,
   verification_status TEXT);
 CREATE TABLE IF NOT EXISTS verifications (
-  id TEXT PRIMARY KEY, claim_id TEXT, evidence_ids TEXT, method TEXT, result TEXT,
-  explanation TEXT, verifier_identity TEXT, timestamp TEXT);
+  id TEXT PRIMARY KEY, claim_id TEXT NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
+  evidence_ids TEXT, method TEXT, result TEXT, explanation TEXT,
+  verifier_identity TEXT, timestamp TEXT);
 CREATE TABLE IF NOT EXISTS contradictions (
   id TEXT PRIMARY KEY, claim_ids TEXT, classification TEXT, evidence_ids TEXT,
   resolution_status TEXT, resolution_provenance TEXT);
@@ -37,6 +40,7 @@ class EvidenceLedger:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(db_path)
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA foreign_keys=ON")
         self.conn.executescript(SCHEMA)
         self.conn.commit()
 
@@ -153,6 +157,11 @@ class EvidenceLedger:
         self.conn.commit()
         self._audit("withdraw_document", {"doc_id": doc_id, "affected_claims": changed})
         return changed
+
+    def verify_source_integrity(self, doc_id):
+        doc = self.get_document(doc_id)
+        if not doc: return False
+        return bool(doc.content_hash)
 
     def close(self):
         self.conn.close()
